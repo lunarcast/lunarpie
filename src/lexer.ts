@@ -2,7 +2,7 @@ import moo from "moo";
 
 export interface Position {
   line: number;
-  col: number;
+  column: number;
 }
 
 export interface Token {
@@ -24,14 +24,14 @@ export const lexer = moo.compile({
 export function tokenStart(token: moo.Token): Position {
   return {
     line: token.line,
-    col: token.col - 1,
+    column: token.col - 1,
   };
 }
 
 export function tokenEnd(token: moo.Token): Position {
   return {
     line: token.line,
-    col: token.col + token.text.length - 1,
+    column: token.col + token.text.length - 1,
   };
 }
 

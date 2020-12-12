@@ -24,6 +24,17 @@ let additions =
         , repo = "https://github.com/hdgarrood/purescript-debugged"
         , version = "744498226da3c9b5b37c69771cc0378a65cc8189"
         }
+      , zipperarray =
+        { dependencies =
+          [ "arrays", "maybe", "prelude", "naturals", "strictlypositiveint" ]
+        , repo = "https://github.com/jamieyung/purescript-zipperarray/"
+        , version = "master"
+        }
+      , strictlypositiveint =
+        { dependencies = [ "prelude" ]
+        , repo = "https://github.com/jamieyung/purescript-strictlypositiveint"
+        , version = "master"
+        }
       }
 
 in  upstream ⫽ overrides ⫽ additions

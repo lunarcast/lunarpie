@@ -2,16 +2,22 @@ module Main where
 
 import Prelude
 
-import Check (CheckM, infer, runCheckM)
+import Check (CheckM, infer)
 import Data.Either (Either(..))
+import Data.Foldable (for_)
 import Data.Map as Map
 import Data.Natural (intToNat)
 import Data.Tuple (Tuple(..))
+import Data.ZipperArray as ZipperArray
 import Effect (Effect)
-import Effect.Class.Console (logShow)
-import Effect.Console (error)
+import Effect.Console (error, log)
 import Eval (eval)
+import Lunarpie.Debug (showPretty)
+import Lunarpie.Language.Parser (Token, file)
 import Term (Environment, Name(..), Term(..), Value(..), application, boundInt, vArrow, valueToTerm)
+import Text.Parsing.Indent (runIndent)
+import Text.Parsing.Parser (ParseError(..), runParserT)
+import Text.Parsing.Parser.Pos (Position(..))
 
 id :: Term
 id = Abstraction (Bound zero)
@@ -80,9 +86,16 @@ m = evalAndInfer
   $ application plus' [one', one', Free natural_, Free succ_, Free zero_] 
   -- $ application plus' [ one', one', Free natural_ ]
 
-main :: Effect Unit
-main = do
-  -- logShow plus'
-  case runCheckM { types, values } m of
-    Right v -> logShow v
-    Left e -> error $ show e
+-- TODO: getting the tokens here is kinda hacky, fix pls
+main :: Array Token -> Effect Unit
+main tokens = do
+  for_ (ZipperArray.fromArray tokens) \tokens' -> do
+    -- logShow plus'
+    -- case runCheckM { types, values } m of
+    --   Right v -> logShow v
+    --   Left e -> error $ show e
+    case runIndent (runParserT tokens' file) of
+      Left (ParseError message (Position { line, column })) -> error $ "Parsing error (" <> show line <> ":" <> show column <> "): " <> message
+      Right ast -> log $ showPretty ast
+
+
