@@ -3,7 +3,7 @@ module Lunarpie.Data.Ast where
 import Prelude
 
 import Data.Debug (class Debug, genericDebug)
-import Data.Foldable (foldr)
+import Data.Foldable (foldl, foldr)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.HashMap as HashMap
@@ -55,6 +55,10 @@ toTerm (Pi binder from to) = Term.Pi <$> toTerm from <*> case binder of
 -- | Construct a curried lambdia
 curriedLambda :: Array String -> Ast -> Ast
 curriedLambda arguments body = foldr Lambda body arguments
+
+-- | Desugar a call with multiple arguments
+manyCalls :: Ast -> Array Ast -> Ast
+manyCalls = foldl Application
 
 ---------- Typeclass instances
 derive instance genericAst :: Generic Ast _

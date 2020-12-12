@@ -12,6 +12,10 @@ export interface Token {
   value: string;
 }
 
+export interface IndentedToken extends Token {
+  indentation: number;
+}
+
 export const lexer = moo.compile({
   ws: /[ \t]+?/,
   comment: /--.*?$/,
@@ -46,4 +50,40 @@ export function convertToken(token: moo.Token): Token {
 
 export function convertTokenId(data: moo.Token[]): Token {
   return convertToken(data[0]);
+}
+
+export function withIndentation(): IndentedToken[] {
+  const result: IndentedToken[] = [];
+
+  let indentation = 0;
+  let startOfLine = true;
+
+  for (const rawToken of lexer) {
+    const token = convertToken(rawToken);
+
+    if (token.type === "nl") {
+      indentation = 0;
+      startOfLine = true;
+      continue;
+    }
+
+    if (token.type === "ws") {
+      if (startOfLine) indentation += token.value.length;
+      continue;
+    }
+
+    if (token.type === "comment") continue;
+
+    if (token.type === "multiLineComment") {
+      startOfLine = false;
+      continue;
+    }
+
+    result.push({
+      ...token,
+      indentation,
+    });
+  }
+
+  return result;
 }

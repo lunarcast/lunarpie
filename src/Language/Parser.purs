@@ -4,30 +4,41 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Control.Lazy (fix)
-import Control.Monad.State (gets, modify_)
+import Control.Monad.Reader (lift)
+import Control.Monad.State (State, evalState, get, gets, modify_, put)
 import Data.Array (many, some)
 import Data.Maybe (Maybe(..), optional)
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.ZipperArray (ZipperArray, current, goNext)
-import Lunarpie.Data.Ast (Ast(..), Declaration(..), curriedLambda)
-import Text.Parsing.Indent (IndentParser)
-import Text.Parsing.Parser (ParseState(..), fail)
+import Lunarpie.Data.Ast (Ast(..), Declaration(..), curriedLambda, manyCalls)
+import Text.Parsing.Parser (ParseState(..), ParserT, fail)
 import Text.Parsing.Parser.Combinators (try)
 import Text.Parsing.Parser.Pos (Position)
 
 type Token = 
   { type :: String
   , value :: String
+  , indentation :: Int
   , start :: Position
   , end :: Position
   }
 
 type TokenStream = ZipperArray Token
-type Parser a = IndentParser TokenStream a
+type Parser a = ParserT TokenStream (State Int) a
 
-foreign import data Lexer :: Type -> Type
+runIndent :: forall a. State Int a -> a
+runIndent = flip evalState 0
 
 -------- Helpers
+withIndentation :: forall a. Int -> Parser a -> Parser a
+withIndentation amount parser = do
+  old <- lift get
+  lift $ put amount
+  result <- parser
+  lift $ put old
+  pure result
+
 -- | Get the first token in the stream
 token :: Parser Token
 token = do
@@ -38,6 +49,8 @@ token = do
     Just input' -> 
       modify_ \(ParseState _ position _) ->
         ParseState input' head.start true
+  indentation <- lift get
+  unless (head.indentation >= indentation) $ fail $ "Token \"" <> head.value <> "\" is not indented enough (minimum " <> show indentation <> " spaces required)"
   pure head
 
 peek :: Parser Token
@@ -86,55 +99,60 @@ lambda = do
   body <- ast
   pure $ curriedLambda arguments body
 
-piBinder :: Parser { name :: Maybe String, type :: Ast }
-piBinder = fix \_ -> try bound <|> notBound 
+piBinder :: Parser Ast -> Parser { name :: Maybe String, type :: Ast }
+piBinder ast' = try bound <|> notBound 
   where
   bound = parenthesis ado
     name <- identifier
     punctuation ":"
-    type' <- atom
+    type' <- atom ast'
     in { name: Just name, type: type' }
 
-  notBound = do 
-    atom <#> { name: Nothing, type: _ }
-
-  atom = try var <|> try star <|> fix \_ -> parenthesis ast
+  notBound = atom ast' <#> { name: Nothing, type: _ }
 
 pi :: Parser Ast
 pi = fix \_ -> ado
-  binder <- piBinder
+  binder <- piBinder ast
   punctuation "->"
   return <- ast
   in Pi binder.name binder.type return
 
+calls :: Parser Ast
+calls = fix \_ -> ado
+  function <- atom ast
+  arguments <- some (try $ atom ast) -- TODO: support f \_ => ... syntax
+  in manyCalls function arguments
+
 ast :: Parser Ast
-ast = fix \_ -> lambda <|> try pi <|> try var <|> try star <|> parenthesis ast
+ast = fix \_ -> try calls <|> lambda <|> try pi <|> try var <|> try star <|> parenthesis ast
+
+atom :: Parser Ast -> Parser Ast
+atom ast' = try var <|> try star <|> fix \_ -> parenthesis ast'
 
 declaration :: Parser Declaration
 declaration = do
-  maybeAnnotation <- optional annotation
-  name <- case maybeAnnotation of
-    Nothing -> identifier
-    Just (Tuple name _) -> do
+  Tuple name maybeAnnotation <- annotation
+  case maybeAnnotation of
+    Nothing -> pure unit
+    Just _ -> do
       name' <- identifier
       unless (name == name') 
         $ fail
         $ "Type definition for "
           <> show name
           <> "must be followed by it's implementation."
-      pure name
   punctuation "="
-  implementation <- ast
+  implementation <- withIndentation 2 ast
   let value = case maybeAnnotation of
         Nothing -> implementation
-        Just (Tuple _ type') -> Annotation implementation type'
+        Just type' -> Annotation implementation type'
   pure $ Declaration { name, value }
   where
-  annotation = ado
+  annotation = do
     name <- identifier 
-    punctuation "::"
-    type' <- ast
-    in Tuple name type'
+    shouldContinue <- optional $ punctuation "::"
+    type' <- traverse (const $ withIndentation 2 ast) shouldContinue
+    pure $ Tuple name type'
 
 file :: Parser (Array Declaration)
 file = many declaration <* match "eof"
