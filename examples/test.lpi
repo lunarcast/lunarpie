@@ -1,0 +1,10 @@
+-- single line comment 
+{- 
+Multi line comment
+-}
+
+Nat :: *
+Nat = (n : Type) -> (n -> n) -> n -> n
+
+zero :: Nat
+zero = \t s z -> z
