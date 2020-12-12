@@ -7,4 +7,4 @@ Nat :: *
 Nat = (n : Type) -> (n -> n) -> n -> n
 
 zero :: Nat
-zero = \t => \s => \z => z
+zero = \t s z => z

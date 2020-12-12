@@ -3,6 +3,7 @@ module Lunarpie.Data.Ast where
 import Prelude
 
 import Data.Debug (class Debug, genericDebug)
+import Data.Foldable (foldr)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe)
@@ -16,6 +17,11 @@ data Ast
   | Star
 
 newtype Declaration = Declaration { name :: String, value :: Ast }
+
+---------- Helpers
+-- | Construct a curried lambdia
+curriedLambda :: Array String -> Ast -> Ast
+curriedLambda arguments body = foldr Lambda body arguments
 
 ---------- Typeclass instances
 derive instance genericAst :: Generic Ast _

@@ -5,11 +5,11 @@ import Prelude
 import Control.Alt ((<|>))
 import Control.Lazy (fix)
 import Control.Monad.State (gets, modify_)
-import Data.Array (many)
+import Data.Array (many, some)
 import Data.Maybe (Maybe(..), optional)
 import Data.Tuple (Tuple(..))
 import Data.ZipperArray (ZipperArray, current, goNext)
-import Lunarpie.Data.Ast (Ast(..), Declaration(..))
+import Lunarpie.Data.Ast (Ast(..), Declaration(..), curriedLambda)
 import Text.Parsing.Indent (IndentParser)
 import Text.Parsing.Parser (ParseState(..), fail)
 import Text.Parsing.Parser.Combinators (try)
@@ -80,11 +80,11 @@ star = punctuation "*" $> Star
 
 lambda :: Parser Ast
 lambda = do
-  punctuation "\\"
-  arg <- identifier
+  try $ punctuation "\\"
+  arguments <- some (try identifier)
   punctuation "=>"
   body <- ast
-  pure $ Lambda arg body
+  pure $ curriedLambda arguments body
 
 piBinder :: Parser { name :: Maybe String, type :: Ast }
 piBinder = fix \_ -> try bound <|> notBound 
@@ -108,7 +108,7 @@ pi = fix \_ -> ado
   in Pi binder.name binder.type return
 
 ast :: Parser Ast
-ast = fix \_ -> try lambda <|> try pi <|> try var <|> try star <|> parenthesis ast
+ast = fix \_ -> lambda <|> try pi <|> try var <|> try star <|> parenthesis ast
 
 declaration :: Parser Declaration
 declaration = do
