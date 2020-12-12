@@ -3,8 +3,17 @@
 Multi line comment
 -}
 
+identity :: (A : *) -> A -> A
+identity = \A b => b
+
+const :: (A : *) -> (B : *) -> A -> B -> A
+const = \A B a b => a
+
 Nat :: *
-Nat = (n : Type) -> (n -> n) -> n -> n
+Nat = (n : *) -> (n -> n) -> n -> n
 
 zero :: Nat
 zero = \t s z => z
+
+one :: Nat
+one = \t s z => s z

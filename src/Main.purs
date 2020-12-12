@@ -2,89 +2,36 @@ module Main where
 
 import Prelude
 
-import Check (CheckM, infer)
+import Check (CheckM, infer, runCheckM)
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
+import Data.List ((:), List(..))
+import Data.List as List
 import Data.Map as Map
-import Data.Natural (intToNat)
 import Data.Tuple (Tuple(..))
 import Data.ZipperArray as ZipperArray
 import Effect (Effect)
-import Effect.Console (error, log)
+import Effect.Console (error, logShow)
 import Eval (eval)
-import Lunarpie.Debug (showPretty)
+import Lunarpie.Data.Ast (Ast, Declaration(..), runAstM, toTerm)
 import Lunarpie.Language.Parser (Token, file)
-import Term (Environment, Name(..), Term(..), Value(..), application, boundInt, vArrow, valueToTerm)
+import Term (Environment, Name(..), Term(..), Value, valueToTerm)
 import Text.Parsing.Indent (runIndent)
 import Text.Parsing.Parser (ParseError(..), runParserT)
 import Text.Parsing.Parser.Pos (Position(..))
 
-id :: Term
-id = Abstraction (Bound zero)
-
-natural_ :: Name
-natural_ = Global "Natural"
-
-succ_ :: Name
-succ_ = Global "S"
-
-zero_ :: Name
-zero_ = Global "Z"
-
--- (n : Type) -> (n -> n) -> n -> n
-nat :: Term
-nat = Pi Star $ Pi (Pi (Bound zero) (Bound one)) $ Pi (Bound one) (Bound $ intToNat 2)
-
--- _ -> _ -> identity
-zero' :: Term
-zero' = Annotation term nat
-  where
-  term = Abstraction $ Abstraction id 
-
-one' :: Term
-one' = Annotation term nat
-  where
-  term = Abstraction $ Abstraction $ Abstraction $ Application (Bound one) (Bound zero)
-
-plus' :: Term
-plus' = Annotation term ty
-  where
-  ty = Pi nat (Pi nat nat)
-
-  term 
-    = Abstraction -- n
-    $ Abstraction -- m
-    $ Abstraction -- type
-    $ Abstraction -- succ 
-    $ Abstraction -- zero
-    $ application (boundInt 4) 
-      [ boundInt 2
-      , boundInt 1  
-      , application (boundInt 3) [ boundInt 2, boundInt 1, boundInt 0 ]
-      ] 
-
 types :: Environment
-types = { local: mempty, global } 
-  where
-  global = Map.fromFoldable
-    [ Tuple natural_ VStar
-    , Tuple zero_ (VFree natural_)
-    , Tuple succ_ (vArrow (VFree natural_) (Free natural_))]
+types = mempty
 
 values :: Environment
-values = { local: mempty, global: mempty } 
+values = mempty
 
 evalAndInfer :: forall r. Term -> CheckM r Term
 evalAndInfer x = do
   ty <- infer x
   value <- eval x
   pure $ Annotation (valueToTerm value) (valueToTerm ty)
-
-m :: CheckM () Term
-m = evalAndInfer 
-  -- $ application one' [Free natural_]
-  $ application plus' [one', one', Free natural_, Free succ_, Free zero_] 
-  -- $ application plus' [ one', one', Free natural_ ]
 
 -- TODO: getting the tokens here is kinda hacky, fix pls
 main :: Array Token -> Effect Unit
@@ -96,6 +43,34 @@ main tokens = do
     --   Left e -> error $ show e
     case runIndent (runParserT tokens' file) of
       Left (ParseError message (Position { line, column })) -> error $ "Parsing error (" <> show line <> ":" <> show column <> "): " <> message
-      Right ast -> log $ showPretty ast
+      Right ast -> go $ List.fromFoldable ast
+  where -- This is some very messy code I use for debugging
+  go :: List Declaration -> Effect Unit
+  go = go' Nil
+
+  go' :: List (Tuple String Value) -> List Declaration -> Effect Unit
+  go' _ Nil = pure unit
+  go' past ((Declaration { value: last }):Nil) = do
+    handleCheck true (pure unit) $ runCheckM (mkEnv past) (evalAndInfer $ toTerm' last) 
+  go' past (Declaration { name, value }:tail) = do
+    let 
+      term = toTerm' value
+      past' = case runCheckM (mkEnv past) $ eval term of
+        Left err -> past 
+        Right new -> (Tuple name new):past
+    handleCheck false (go' past' tail) $ runCheckM (mkEnv past) (infer term)
+
+  handleCheck :: forall a. Show a => Boolean -> Effect Unit -> Either _ a -> Effect Unit
+  handleCheck shouldLog next = case _ of
+    Left err -> logShow err
+    Right result -> do
+      when shouldLog $ logShow result
+      next
+
+  toTerm' :: Ast -> Term
+  toTerm' value = runAstM mempty $ toTerm value
+
+  mkEnv :: List (Tuple String Value) -> _
+  mkEnv past = { types, values: { global: Map.fromFoldable $ lmap Global <$> past, local: mempty } }
 
 

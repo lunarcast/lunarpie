@@ -6,7 +6,13 @@ import Data.Debug (class Debug, genericDebug)
 import Data.Foldable (foldr)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
-import Data.Maybe (Maybe)
+import Data.HashMap as HashMap
+import Data.Maybe (Maybe(..))
+import Data.Natural (Natural)
+import Run (Run, extract)
+import Run.Reader (READER, ask, local, runReader)
+import Subsitution (succ)
+import Term as Term
 
 data Ast
   = Var String
@@ -17,6 +23,33 @@ data Ast
   | Star
 
 newtype Declaration = Declaration { name :: String, value :: Ast }
+
+---------- Generating terms
+type AstEnv = HashMap.HashMap String Natural
+
+type AstM = Run 
+  ( reader :: READER AstEnv )
+
+-- | Introduce a new variable in scope
+withValue :: forall a. String -> AstM a -> AstM a
+withValue name = local (map succ >>> HashMap.insert name zero)
+
+-- | Run the ast monad
+runAstM :: forall a. AstEnv -> AstM a -> a
+runAstM env = runReader env >>> extract
+
+-- | Generate the coresponding term for a given ast
+toTerm :: Ast -> AstM Term.Term
+toTerm Star = pure Term.Star
+toTerm (Var name) = ask <#> \ctx -> case HashMap.lookup name ctx of
+  Just index -> Term.Bound index
+  Nothing -> Term.Free $ Term.Global name
+toTerm (Application f a) = Term.Application <$> toTerm f <*> toTerm a
+toTerm (Annotation t a) = Term.Annotation <$> toTerm t <*> toTerm a
+toTerm (Lambda arg body) = withValue arg $ Term.Abstraction <$> toTerm body
+toTerm (Pi binder from to) = Term.Pi <$> toTerm from <*> case binder of
+  Nothing -> local (map succ) $ toTerm to
+  Just name -> withValue name $ toTerm to
 
 ---------- Helpers
 -- | Construct a curried lambdia

@@ -1,7 +1,7 @@
 {
   "name": "lunarpie",
   "scripts": {
-    "dev": "ts-node-dev --respawn --watch src/**/*.ts --transpile-only src"
+    "dev": "ts-node-dev --respawn --watch src/**/*.ts,examples --transpile-only src"
   },
   "dependencies": {
     "moo": "^0.5.1"

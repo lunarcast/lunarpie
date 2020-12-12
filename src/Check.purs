@@ -9,21 +9,21 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import ErrorStack (EXCEPT_STACKED, ErrorStack, throw, while)
-import Eval (EvalM, _global, _values, call, eval, localValues)
+import Eval (EvalM, _global, _values, call, eval, getValues, localValues)
 import Run (extract)
 import Run.Except (runExcept)
 import Run.Reader (READER, ask, local, runReader, runReaderAt)
 import Run.State (STATE, evalState, get, modify)
 import String (errorText, indent, unlines)
 import Subsitution (substitute)
-import Term (Name(..), Term(..), Value(..), Environment)
+import Term (Environment, Name(..), Term(..), Value(..), valueToTerm)
 
 type CheckM r = EvalM 
   ( reader :: READER Environment
   -- TODO: better error managment
   , except :: EXCEPT_STACKED Action TypeError
-  , state :: STATE Natural
-   | r )
+  , state :: STATE Natural 
+  | r )
 
 data TypeError
   = TypeMissmatch { inferred :: Value, expected :: Value, term :: Term }
@@ -78,7 +78,9 @@ infer' (Annotation term annotation) = do
   pure expected
 infer' (Free name) = ask <#> _.global >>= \ctx -> case Map.lookup name ctx of
   Just ty -> pure ty
-  Nothing -> throw $ NameNotInScope name
+  Nothing -> getValues <#> _.global >>= \ctx' -> case Map.lookup name ctx' of
+    Just value -> infer $ valueToTerm value
+    Nothing -> throw $ NameNotInScope name
 infer' (Pi from to) = do
   check from VStar
   from' <- eval from
