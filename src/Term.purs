@@ -99,6 +99,7 @@ instance showTerm :: Show Term where
     where
     rhs = case a of
       Application _ _ -> true
+      Abstraction _ -> true
       Annotation _ _ -> true
       Pi _ _ -> true
       _ -> false

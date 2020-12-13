@@ -22,7 +22,9 @@ data Ast
   | Pi (Maybe String) Ast Ast
   | Star
 
-newtype Declaration = Declaration { name :: String, value :: Ast }
+data TopLevelEntry 
+  = Declaration String Ast
+  | Axiom String Ast
 
 ---------- Generating terms
 type AstEnv = HashMap.HashMap String Natural
@@ -66,13 +68,10 @@ derive instance genericAst :: Generic Ast _
 instance showAst :: Show Ast where
   show a = genericShow a
 
-derive instance genericDeclaration :: Generic Declaration _
-
-instance showDeclaration :: Show Declaration where
-  show (Declaration { name, value }) = name <> ": " <> show value
+derive instance genericDeclaration :: Generic TopLevelEntry _
 
 instance debugAst :: Debug Ast where
   debug a = genericDebug a
 
-instance debugDeclaration :: Debug Declaration where
+instance debugDeclaration :: Debug TopLevelEntry where
   debug = genericDebug

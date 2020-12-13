@@ -1,14 +1,11 @@
--- single line comment 
-{- 
-Multi line comment
--}
-
+-- Some basic combinators:
 identity :: (A : *) -> A -> A
 identity = \A b => b
 
 const :: (A : *) -> (B : *) -> A -> B -> A
 const = \A B a b => a
 
+-- Church numerals
 Nat :: *
 Nat = (n : *) -> (n -> n) -> n -> n
 
@@ -17,3 +14,40 @@ zero = \t s z => z
 
 one :: Nat
 one = \t s z => s z
+
+succ :: Nat -> Nat
+succ = \n t s z => s (n t s z)
+
+plus :: Nat -> Nat -> Nat
+plus = \n m t s z => n t s (m t s z)
+
+-- Constructors for better printing of numerals
+assume Natural :: *
+assume Z :: Natural
+assume S :: Natural -> Natural
+
+natToNatural :: Nat -> Natural
+natToNatural = \n => n Natural S Z
+
+-- A few numbers:
+two :: Nat
+two = plus one one
+
+three :: Nat
+three = succ two
+
+five :: Nat
+five = plus two three
+
+-- Equality
+assume Equal :: (a : *) -> (b : *) -> a -> b -> *
+assume Refl :: (a : *) -> (x : a) -> Equal a a x x
+
+zeroIsZero :: Equal Nat Nat zero zero
+zeroIsZero = Refl Nat zero
+
+oneIsOne :: Equal Nat Nat one one
+oneIsOne = Refl Nat one
+
+zeroPlusNIsN :: (n : Nat) -> Equal Nat Nat n (plus zero n)
+zeroPlusNIsN = \n => Refl Nat n

@@ -3,6 +3,7 @@ module Check where
 import Prelude
 
 import Data.Either (Either)
+import Data.Function (on)
 import Data.Lens (over)
 import Data.Lens.Record (prop)
 import Data.Map as Map
@@ -64,7 +65,7 @@ check' (Abstraction body) (VPi from to) = do
 check' expr@(Abstraction _) other = throw $ NotAPi expr other
 check' term expected = do
   inferred <- infer term
-  unless (inferred == expected) $ throw $ TypeMissmatch { inferred, expected, term } 
+  unless (on (==) valueToTerm inferred expected) $ throw $ TypeMissmatch { inferred, expected, term } 
 
 infer :: forall r. Term -> CheckM r Value
 infer term = while (Inferring term) $ infer' term

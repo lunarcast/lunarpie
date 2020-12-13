@@ -20,6 +20,7 @@ export const lexer = moo.compile({
   ws: /[ \t]+?/,
   comment: /--.*?$/,
   multiLineComment: { match: /\{-[^]*?-}/, lineBreaks: true },
+  keyword: ["assume"],
   identifier: /[\w][\w\d'\-]*/,
   punctuation: ["(", ")", "->", "::", ":", "=>", "=", "*", "\\"],
   nl: { match: "\n", lineBreaks: true },

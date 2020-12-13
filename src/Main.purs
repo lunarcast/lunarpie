@@ -3,7 +3,6 @@ module Main where
 import Prelude
 
 import Check (CheckM, infer, runCheckM)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List ((:), List(..))
@@ -13,8 +12,8 @@ import Data.Tuple (Tuple(..))
 import Data.ZipperArray as ZipperArray
 import Effect (Effect)
 import Effect.Console (error, logShow)
-import Eval (eval)
-import Lunarpie.Data.Ast (Ast, Declaration(..), runAstM, toTerm)
+import Eval (eval, runEvalM)
+import Lunarpie.Data.Ast (Ast, TopLevelEntry(..), runAstM, toTerm)
 import Lunarpie.Language.Parser (Token, file, runIndent)
 import Term (Environment, Name(..), Term(..), Value, valueToTerm)
 import Text.Parsing.Parser (ParseError(..), runParserT)
@@ -44,32 +43,31 @@ main tokens = do
       Left (ParseError message (Position { line, column })) -> error $ "Parsing error (" <> show line <> ":" <> show column <> "): " <> message
       Right ast -> go $ List.fromFoldable ast
   where -- This is some very messy code I use for debugging
-  go :: List Declaration -> Effect Unit
-  go = go' Nil
+  go :: List TopLevelEntry -> Effect Unit
+  go = go' mempty
 
-  go' :: List (Tuple String Value) -> List Declaration -> Effect Unit
+  go' :: { types :: Map.Map Name Value, values :: Map.Map Name Value } -> List TopLevelEntry -> Effect Unit
   go' _ Nil = pure unit
-  go' past ((Declaration { value: last }):Nil) = do
-    handleCheck true (pure unit) $ runCheckM (mkEnv past) (evalAndInfer $ toTerm' last) 
-  go' past (Declaration { name, value }:tail) = do
-    let 
-      term = toTerm' value
-      past' = case runCheckM (mkEnv past) $ eval term of
-        Left err -> past 
-        Right new -> (Tuple name new):past
-    handleCheck false (go' past' tail) $ runCheckM (mkEnv past) (infer term)
-
-  handleCheck :: forall a. Show a => Boolean -> Effect Unit -> Either _ a -> Effect Unit
-  handleCheck shouldLog next = case _ of
-    Left err -> logShow err
-    Right result -> do
-      when shouldLog $ logShow result
-      next
+  go' past ((Declaration name ast):tail) = do
+    let term = toTerm' ast
+    case runCheckM (mkEnv past) (Tuple <$> infer term <*> eval term) of
+      Left err -> logShow err
+      Right (Tuple type' value) -> do
+        when (List.null tail) $ logShow $ Annotation (valueToTerm value) (valueToTerm type')
+        let past' 
+              = past 
+                { values = Map.insert (Global name) value past.values
+                , types = Map.insert (Global name) type' past.types 
+                }
+        go' past' tail
+  go' past ((Axiom name ast):tail) = do
+    let type' = runEvalM { global: past.values, local: mempty } $ eval $ toTerm' ast
+    go' (past { types = Map.insert (Global name) type' past.types }) tail
 
   toTerm' :: Ast -> Term
   toTerm' value = runAstM mempty $ toTerm value
 
-  mkEnv :: List (Tuple String Value) -> _
-  mkEnv past = { types, values: { global: Map.fromFoldable $ lmap Global <$> past, local: mempty } }
-
+  mkEnv past = { types: mkCtx past.types, values: mkCtx past.values }
+    where
+    mkCtx global = { global, local: mempty }
 

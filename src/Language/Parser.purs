@@ -11,7 +11,7 @@ import Data.Maybe (Maybe(..), optional)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.ZipperArray (ZipperArray, current, goNext)
-import Lunarpie.Data.Ast (Ast(..), Declaration(..), curriedLambda, manyCalls)
+import Lunarpie.Data.Ast (Ast(..), TopLevelEntry(..), curriedLambda, manyCalls)
 import Text.Parsing.Parser (ParseState(..), ParserT, fail)
 import Text.Parsing.Parser.Combinators (try)
 import Text.Parsing.Parser.Pos (Position)
@@ -81,6 +81,16 @@ punctuation expected = match "punctuation" >>= \token' -> do
       <> show expected 
       <> "."
 
+keyword :: String -> Parser Unit
+keyword expected = token >>= \token' -> do
+  unless (token'.value == expected && token'.type == "keyword") 
+    $ fail
+    $ "Unexpected token \"" 
+      <> token'.value 
+      <> "\". Expected keyword " 
+      <> show expected 
+      <> "."
+
 parenthesis :: forall a. Parser a -> Parser a
 parenthesis p = punctuation "(" *> p <* punctuation ")"
 
@@ -129,7 +139,15 @@ ast = fix \_ -> try calls <|> lambda <|> try pi <|> try var <|> try star <|> par
 atom :: Parser Ast -> Parser Ast
 atom ast' = try var <|> try star <|> fix \_ -> parenthesis ast'
 
-declaration :: Parser Declaration
+assumption :: Parser TopLevelEntry
+assumption = do
+  try $ keyword "assume"
+  name <- identifier
+  punctuation "::"
+  type' <- withIndentation 2 ast
+  pure $ Axiom name type'
+
+declaration :: Parser TopLevelEntry
 declaration = do
   Tuple name maybeAnnotation <- annotation
   case maybeAnnotation of
@@ -146,7 +164,7 @@ declaration = do
   let value = case maybeAnnotation of
         Nothing -> implementation
         Just type' -> Annotation implementation type'
-  pure $ Declaration { name, value }
+  pure $ Declaration name value
   where
   annotation = do
     name <- identifier 
@@ -154,5 +172,5 @@ declaration = do
     type' <- traverse (const $ withIndentation 2 ast) shouldContinue
     pure $ Tuple name type'
 
-file :: Parser (Array Declaration)
-file = many declaration <* match "eof"
+file :: Parser (Array TopLevelEntry)
+file = many (assumption <|> declaration) <* match "eof"
