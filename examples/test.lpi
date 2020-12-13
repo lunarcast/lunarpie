@@ -1,9 +1,30 @@
 -- Some basic combinators:
+{-
 identity :: (A : *) -> A -> A
 identity = \A b => b
 
 const :: (A : *) -> (B : *) -> A -> B -> A
 const = \A B a b => a
+-}
+
+-- Tuples
+Tuple :: (a : *) -> (b : a -> *) -> *
+Tuple = \A B => (r : *) -> ((a: A) -> (B a) -> r) -> r
+
+mkTuple :: (A : *) -> (B : A -> *) -> A -> ((a : A) -> B a) -> Tuple A B
+mkTuple = \A B a b R r => r a (b a)
+
+first :: (A : *) -> (B : A -> *) -> (Tuple A B) -> A
+first = \A B t => t A (\a b => a)
+
+{- This doesn't compile and idk how to fix it
+second :: (A : *) -> (B : A -> *) -> (t : Tuple A B) -> B (first A B t)
+second = \A B t => t (B (first A B t)) (\a b => b)
+-}
+
+uncurry :: (A : *) -> (B : A -> *) -> ((a : A) -> (B a) -> Tuple A B) -> (Tuple A B) -> Tuple A B
+uncurry = \A B map tuple => tuple (Tuple A B) map
+
 
 -- Church numerals
 Nat :: *
@@ -22,6 +43,7 @@ plus :: Nat -> Nat -> Nat
 plus = \n m t s z => n t s (m t s z)
 
 -- Constructors for better printing of numerals
+{-
 assume Natural :: *
 assume Z :: Natural
 assume S :: Natural -> Natural
@@ -38,6 +60,7 @@ three = succ two
 
 five :: Nat
 five = plus two three
+-}
 
 -- Equality
 assume Equal :: (a : *) -> (b : *) -> a -> b -> *
@@ -51,3 +74,32 @@ oneIsOne = Refl Nat one
 
 zeroPlusNIsN :: (n : Nat) -> Equal Nat Nat n (plus zero n)
 zeroPlusNIsN = \n => Refl Nat n
+
+zeroPlusNIsSN :: (n : Nat) -> Equal Nat Nat n (plus zero n)
+zeroPlusNIsSN = \n => Refl Nat n
+
+nPlusZeroIsN :: (n : Nat) -> Equal Nat Nat (plus n zero) n
+nPlusZeroIsN = \n => Refl Nat n
+
+nPlusZeroIsNPlusZero :: (n : Nat) -> Equal Nat Nat (plus n zero) (plus zero n)
+nPlusZeroIsNPlusZero = \n => Refl Nat n
+
+{-
+nit :: *
+nit = Tuple (Nat -> *) Nat
+
+naturalInduction :: 
+    (P : Nat -> *) -> -- Propriety we are proving
+    (P zero) -- Base case
+    ((k : Nat) -> P k -> P (succ k)) -- Inductive step
+    (x : Nat) -- Show for all x
+    P x -- Resulting proof
+naturalInduction P base step k = first nit (k (mkTuple (Nat -> *) Nat base zero) (mapTuple (Nat -> *) Nat (\proof prev => step prev proof) (\proof prev => succ prev))
+-}
+
+--plusCommutative :: (a : Nat) -> (b : Nat) -> Equal Nat Nat (plus a b) (plus b a)
+--plusCommutative = \a b => Refl Nat (plus a b)
+
+-- true :: Equal Nat Nat one (plus zero one)
+-- true = Refl Nat one
+
