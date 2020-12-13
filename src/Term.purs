@@ -12,27 +12,31 @@ import String (parenthesis)
 
 data Term
   -- "Value" level stuff
-  = Abstraction Term
-  | Annotation Term Term
-  | Application Term Term
-  | Bound Natural
-  | Free Name
+  = Abstraction Term -- \x -> x
+  | Annotation Term Term -- x :: t
+  | Application Term Term -- f a
+  | Bound Natural -- x
+  | Free Name -- 
   -- "Type" level stuff
-  | Pi Term Term
-  | Star
+  | Pi Term Term -- (n: Type) -> n
+  | Star -- Type
 
 data Name
   = Local Natural
   | Global String
+  | Quote Natural
 
 type VFunction = { closure :: Environment, term :: Term }
 
 data Value 
-  = VStar
-  | VLambda VFunction
+  = VLambda VFunction
   | VPi Value VFunction
-  | VFree Name
-  | VApp Value Value
+  | Neutral Neutral
+  | VStar 
+
+data Neutral 
+  = NFree Name
+  | NApp Neutral Value
 
 type LocalEnv = List Value
 type Context = Map Name Value
@@ -50,17 +54,21 @@ vArrow :: Value -> Term -> Value
 vArrow a b = VPi a { closure: mempty, term: b }
 
 valueToTerm :: Value -> Term
-valueToTerm VStar = Star
+valueToTerm (Neutral n) = neutralToTerm n
 valueToTerm (VLambda { term }) = Abstraction term
 valueToTerm (VPi from { term }) = Pi (valueToTerm from) term
-valueToTerm (VFree name) = Free name
-valueToTerm (VApp f a) = Application (valueToTerm f) (valueToTerm a)
+valueToTerm VStar = Star
+
+neutralToTerm :: Neutral -> Term
+neutralToTerm (NFree name) = Free name
+neutralToTerm (NApp f a) = Application (neutralToTerm f) (valueToTerm a)
 
 ---------- Typeclass instances
 derive instance eqName :: Eq Name
 derive instance ordName :: Ord Name
 
 derive instance eqTerm :: Eq Term
+derive instance eqNeutral :: Eq Neutral
 derive instance eqValue :: Eq Value
 
 arrow :: String
@@ -74,6 +82,7 @@ instance showName :: Show Name where
     where 
     go (Local id) = withGraphics (foreground White) "?" <> style (show id)
     go (Global name) = style name
+    go (Quote id) = "~" <> show id
 
     style = withGraphics (foreground White <> italic)
 
@@ -116,3 +125,5 @@ parenthesisWhen false s = s
 
 instance showValue :: Show Value where
   show = valueToTerm >>> show
+
+

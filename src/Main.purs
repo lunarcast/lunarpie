@@ -2,19 +2,21 @@ module Main where
 
 import Prelude
 
+import Ansi.Output (italic, withGraphics)
 import Check (CheckM, infer, runCheckM)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List ((:), List(..))
 import Data.List as List
 import Data.Map as Map
-import Data.Tuple (Tuple(..))
 import Data.ZipperArray as ZipperArray
 import Effect (Effect)
+import Effect.Class.Console (log)
 import Effect.Console (error, logShow)
-import Eval (eval, runEvalM)
+import Eval (eval, quote', runEvalM)
 import Lunarpie.Data.Ast (Ast, TopLevelEntry(..), runAstM, toTerm)
 import Lunarpie.Language.Parser (Token, file, runIndent)
+import String (errorText)
 import Term (Environment, Name(..), Term(..), Value, valueToTerm)
 import Text.Parsing.Parser (ParseError(..), runParserT)
 import Text.Parsing.Parser.Pos (Position(..))
@@ -49,11 +51,19 @@ main tokens = do
   go' :: { types :: Map.Map Name Value, values :: Map.Map Name Value } -> List TopLevelEntry -> Effect Unit
   go' _ Nil = pure unit
   go' past ((Declaration name ast):tail) = do
-    let term = toTerm' ast
-    case runCheckM (mkEnv past) (Tuple <$> infer term <*> eval term) of
-      Left err -> logShow err
-      Right (Tuple type' value) -> do
-        when (List.null tail) $ logShow $ Annotation (valueToTerm value) (valueToTerm type')
+    let 
+      term = toTerm' ast
+      m = do
+        type' <- infer term
+        value <- eval term
+        quoted <- quote' value
+        pure { value, type', quoted }
+    case runCheckM (mkEnv past) m of
+      Left err -> do
+        log $ errorText $ "Type error (" <> withGraphics italic name <> "):"  
+        logShow err
+      Right { type', value, quoted } -> do
+        when (List.null tail) $ logShow $ Annotation quoted (valueToTerm type')
         let past' 
               = past 
                 { values = Map.insert (Global name) value past.values

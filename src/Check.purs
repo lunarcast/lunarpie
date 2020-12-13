@@ -3,21 +3,20 @@ module Check where
 import Prelude
 
 import Data.Either (Either)
-import Data.Function (on)
 import Data.Lens (over)
 import Data.Lens.Record (prop)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import ErrorStack (EXCEPT_STACKED, ErrorStack, throw, while)
-import Eval (EvalM, _global, _values, call, eval, getValues, localValues)
+import Eval (EvalM, _global, _values, areEqual, call, eval, getValues, localValues, quote')
 import Run (extract)
 import Run.Except (runExcept)
 import Run.Reader (READER, ask, local, runReader, runReaderAt)
 import Run.State (STATE, evalState, get, modify)
 import String (errorText, indent, unlines)
 import Subsitution (substitute)
-import Term (Environment, Name(..), Term(..), Value(..), valueToTerm)
+import Term (Environment, Name(..), Term(..), Value(..))
 
 type CheckM r = EvalM 
   ( reader :: READER Environment
@@ -65,7 +64,11 @@ check' (Abstraction body) (VPi from to) = do
 check' expr@(Abstraction _) other = throw $ NotAPi expr other
 check' term expected = do
   inferred <- infer term
-  unless (on (==) valueToTerm inferred expected) $ throw $ TypeMissmatch { inferred, expected, term } 
+  equivalent <- areEqual inferred expected
+  unless equivalent do
+    a <- quote' inferred
+    b <- quote' expected
+    throw $ TypeMissmatch { inferred, expected, term } 
 
 infer :: forall r. Term -> CheckM r Value
 infer term = while (Inferring term) $ infer' term
@@ -80,7 +83,7 @@ infer' (Annotation term annotation) = do
 infer' (Free name) = ask <#> _.global >>= \ctx -> case Map.lookup name ctx of
   Just ty -> pure ty
   Nothing -> getValues <#> _.global >>= \ctx' -> case Map.lookup name ctx' of
-    Just value -> infer $ valueToTerm value
+    Just value -> quote' value >>= infer
     Nothing -> throw $ NameNotInScope name
 infer' (Pi from to) = do
   check from VStar

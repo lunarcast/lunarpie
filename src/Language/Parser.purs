@@ -7,7 +7,7 @@ import Control.Lazy (fix)
 import Control.Monad.Reader (lift)
 import Control.Monad.State (State, evalState, get, gets, modify_, put)
 import Data.Array (many, some)
-import Data.Maybe (Maybe(..), optional)
+import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.ZipperArray (ZipperArray, current, goNext)
@@ -115,10 +115,10 @@ piBinder ast' = try bound <|> notBound
   bound = parenthesis ado
     name <- identifier
     punctuation ":"
-    type' <- atom ast'
+    type' <- ast'
     in { name: Just name, type: type' }
 
-  notBound = atom ast' <#> { name: Nothing, type: _ }
+  notBound = (try calls <|> atom ast') <#> { name: Nothing, type: _ }
 
 pi :: Parser Ast
 pi = fix \_ -> ado
@@ -168,7 +168,7 @@ declaration = do
   where
   annotation = do
     name <- identifier 
-    shouldContinue <- optional $ punctuation "::"
+    shouldContinue <-  (try (punctuation "::") <#> Just) <|> pure Nothing
     type' <- traverse (const $ withIndentation 2 ast) shouldContinue
     pure $ Tuple name type'
 

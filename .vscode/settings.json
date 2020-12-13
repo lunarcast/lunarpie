@@ -6,6 +6,7 @@
         "lunarpie",
         "respawn",
         "rparan",
-        "succ"
+        "succ",
+        "uncurry"
     ]
 }

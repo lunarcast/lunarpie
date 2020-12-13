@@ -2,7 +2,7 @@ module Subsitution where
 
 import Prelude
 
-import Data.Natural (Natural)
+import Data.Natural (Natural, intToNat, natToInt)
 import Term (Term(..))
 
 -- TODO: perhaps update this to use recursion schemes?
@@ -16,6 +16,17 @@ substitute index with term = case term of
   v -> v
   where 
   self = substitute index with
+
+shift :: Int -> Natural -> Term -> Term
+shift index past term = case term of
+  Annotation e t -> Annotation (self e) (self t)
+  Pi from to -> Pi (self from) (shift index (succ past) to)
+  Bound at | at >= past -> Bound (intToNat $ index + natToInt at)
+  Application f a -> Application (self f) (self a)
+  Abstraction body -> Abstraction (shift index (succ past) body)
+  v -> v
+  where 
+  self = shift index past
 
 ---------- Helpers
 succ :: forall a. Semiring a => a -> a
