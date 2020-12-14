@@ -26,6 +26,8 @@ data TopLevelEntry
   = Declaration String Ast
   | Axiom String Ast
 
+type Module = Array TopLevelEntry
+
 ---------- Generating terms
 type AstEnv = HashMap.HashMap String Natural
 

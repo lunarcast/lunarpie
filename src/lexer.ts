@@ -16,7 +16,7 @@ export interface IndentedToken extends Token {
   indentation: number;
 }
 
-export const lexer = moo.compile({
+const lexer = moo.compile({
   ws: /[ \t]+?/,
   comment: /--.*?$/,
   multiLineComment: { match: /\{-[^]*?-}/, lineBreaks: true },
@@ -26,21 +26,21 @@ export const lexer = moo.compile({
   nl: { match: "\n", lineBreaks: true },
 });
 
-export function tokenStart(token: moo.Token): Position {
+function tokenStart(token: moo.Token): Position {
   return {
     line: token.line,
     column: token.col - 1,
   };
 }
 
-export function tokenEnd(token: moo.Token): Position {
+function tokenEnd(token: moo.Token): Position {
   return {
     line: token.line,
     column: token.col + token.text.length - 1,
   };
 }
 
-export function convertToken(token: moo.Token): Token {
+function convertToken(token: moo.Token): Token {
   return {
     type: token.type,
     value: token.value,
@@ -49,11 +49,7 @@ export function convertToken(token: moo.Token): Token {
   };
 }
 
-export function convertTokenId(data: moo.Token[]): Token {
-  return convertToken(data[0]);
-}
-
-export function withIndentation(): IndentedToken[] {
+function withIndentation(): IndentedToken[] {
   const result: IndentedToken[] = [];
 
   let indentation = 0;
@@ -87,4 +83,21 @@ export function withIndentation(): IndentedToken[] {
   }
 
   return result;
+}
+
+export function lex(text: string) {
+  lexer.reset(text);
+
+  const tokens = withIndentation();
+  const lastToken = tokens[tokens.length - 1];
+
+  tokens.push({
+    end: lastToken.end,
+    start: lastToken.start,
+    value: "__eof",
+    type: "eof",
+    indentation: Infinity,
+  });
+
+  return tokens;
 }

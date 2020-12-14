@@ -7,24 +7,22 @@ import Control.Lazy (fix)
 import Control.Monad.Reader (lift)
 import Control.Monad.State (State, evalState, get, gets, modify_, put)
 import Data.Array (many, some)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
+import Data.Variant (SProxy(..), Variant, inj)
 import Data.ZipperArray (ZipperArray, current, goNext)
+import Data.ZipperArray as ZipperArray
+import Lunarpie.Compiler.Stage (Stage)
 import Lunarpie.Data.Ast (Ast(..), TopLevelEntry(..), curriedLambda, manyCalls)
-import Text.Parsing.Parser (ParseState(..), ParserT, fail)
+import Lunarpie.Language.Lexer (Token)
+import Run.Except (throw)
+import Text.Parsing.Parser (ParseError, ParseState(..), ParserT, fail, runParserT)
 import Text.Parsing.Parser.Combinators (try)
-import Text.Parsing.Parser.Pos (Position)
-
-type Token = 
-  { type :: String
-  , value :: String
-  , indentation :: Int
-  , start :: Position
-  , end :: Position
-  }
 
 type TokenStream = ZipperArray Token
+
 type Parser a = ParserT TokenStream (State Int) a
 
 runIndent :: forall a. State Int a -> a
@@ -45,8 +43,8 @@ token = do
   input <- gets \(ParseState input _ _) -> input
   let head = current input
   case goNext input of
-    Nothing -> pure unit 
-    Just input' -> 
+    Nothing -> pure unit
+    Just input' ->
       modify_ \(ParseState _ position _) ->
         ParseState input' head.start true
   indentation <- lift get
@@ -59,37 +57,37 @@ peek = gets \(ParseState input _ _) -> current input
 match :: String -> Parser Token
 match expected = do
   head <- token
-  unless (head.type == expected) 
-    $ fail 
-    $ "Unexpected token " 
-      <> show head.value 
-      <> ". Expected a token of type " 
-      <> show expected 
-      <> "."
+  unless (head.type == expected)
+    $ fail
+    $ "Unexpected token "
+    <> show head.value
+    <> ". Expected a token of type "
+    <> show expected
+    <> "."
   pure head
 
 identifier :: Parser String
 identifier = match "identifier" <#> _.value
-  
+
 punctuation :: String -> Parser Unit
 punctuation expected = match "punctuation" >>= \token' -> do
-  unless (token'.value == expected) 
+  unless (token'.value == expected)
     $ fail
-    $ "Unexpected punctuation \"" 
-      <> token'.value 
-      <> "\". Expected " 
-      <> show expected 
-      <> "."
+    $ "Unexpected punctuation \""
+    <> token'.value
+    <> "\". Expected "
+    <> show expected
+    <> "."
 
 keyword :: String -> Parser Unit
 keyword expected = token >>= \token' -> do
-  unless (token'.value == expected && token'.type == "keyword") 
+  unless (token'.value == expected && token'.type == "keyword")
     $ fail
-    $ "Unexpected token \"" 
-      <> token'.value 
-      <> "\". Expected keyword " 
-      <> show expected 
-      <> "."
+    $ "Unexpected token \""
+    <> token'.value
+    <> "\". Expected keyword "
+    <> show expected
+    <> "."
 
 parenthesis :: forall a. Parser a -> Parser a
 parenthesis p = punctuation "(" *> p <* punctuation ")"
@@ -110,7 +108,7 @@ lambda = do
   pure $ curriedLambda arguments body
 
 piBinder :: Parser Ast -> Parser { name :: Maybe String, type :: Ast }
-piBinder ast' = try bound <|> notBound 
+piBinder ast' = try bound <|> notBound
   where
   bound = parenthesis ado
     name <- identifier
@@ -154,11 +152,11 @@ declaration = do
     Nothing -> pure unit
     Just _ -> do
       name' <- identifier
-      unless (name == name') 
+      unless (name == name')
         $ fail
         $ "Type definition for "
-          <> show name
-          <> "must be followed by it's implementation."
+        <> show name
+        <> "must be followed by it's implementation."
   punctuation "="
   implementation <- withIndentation 2 ast
   let value = case maybeAnnotation of
@@ -167,10 +165,36 @@ declaration = do
   pure $ Declaration name value
   where
   annotation = do
-    name <- identifier 
-    shouldContinue <-  (try (punctuation "::") <#> Just) <|> pure Nothing
+    name <- identifier
+    shouldContinue <- (try (punctuation "::") <#> Just) <|> pure Nothing
     type' <- traverse (const $ withIndentation 2 ast) shouldContinue
     pure $ Tuple name type'
 
 file :: Parser (Array TopLevelEntry)
 file = many (assumption <|> declaration) <* match "eof"
+
+---------- Compiler stage
+type ParsingStageError e = 
+  ( syntaxError :: ParseError -- TODO: better errors
+  , emptyFile :: Unit
+  | e )
+
+parsingStage :: forall r e. Stage (ParsingStageError e) r (Array Token) (Array TopLevelEntry)
+parsingStage tokens = case ZipperArray.fromArray tokens of
+  Nothing -> throw emptyFile
+  Just zipper -> case runIndent $ runParserT zipper file of
+    Right result -> pure result
+    Left error -> throw $ syntaxError error
+
+---------- Stuff generated using snippets 
+syntaxError :: forall r a. a -> Variant ( syntaxError :: a | r )
+syntaxError = inj _syntaxError
+
+_syntaxError :: SProxy "syntaxError"
+_syntaxError = SProxy
+
+emptyFile :: forall r. Variant ( emptyFile :: Unit | r )
+emptyFile = inj _emptyFile unit
+
+_emptyFile :: SProxy "emptyFile"
+_emptyFile = SProxy

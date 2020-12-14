@@ -1,12 +1,16 @@
 {
-    "cSpell.words": [
-        "combinators",
-        "downlevel",
-        "lparan",
-        "lunarpie",
-        "respawn",
-        "rparan",
-        "succ",
-        "uncurry"
-    ]
+  "cSpell.words": [
+    "Existentials",
+    "combinators",
+    "downlevel",
+    "lparan",
+    "lunarpie",
+    "respawn",
+    "rparan",
+    "succ",
+    "uncurry"
+  ],
+  "[purescript]": {
+    "editor.formatOnSave": false
+  }
 }

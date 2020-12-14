@@ -1,30 +1,30 @@
+-- Alias for *
+Type = *
+
 -- Some basic combinators:
-{-
 identity :: (A : *) -> A -> A
 identity = \A b => b
 
 const :: (A : *) -> (B : *) -> A -> B -> A
 const = \A B a b => a
--}
 
 -- Tuples
 Tuple :: (a : *) -> (b : a -> *) -> *
 Tuple = \A B => (r : *) -> ((a: A) -> (B a) -> r) -> r
 
-mkTuple :: (A : *) -> (B : A -> *) -> A -> ((a : A) -> B a) -> Tuple A B
-mkTuple = \A B a b R r => r a (b a)
+mkTuple :: (A : *) -> (B : A -> *) -> (a: A) -> (B a) -> Tuple A B
+mkTuple = \A B a b R r => r a b
 
 first :: (A : *) -> (B : A -> *) -> (Tuple A B) -> A
 first = \A B t => t A (\a b => a)
 
-{- This doesn't compile and idk how to fix it
-second :: (A : *) -> (B : A -> *) -> (t : Tuple A B) -> B (first A B t)
-second = \A B t => t (B (first A B t)) (\a b => b)
+{-
+second :: (A : *) -> (B : A -> *) -> (t : Tuple A B) -> ((a : A) -> (B a))
+second = \A B t a => t (B a) (\a b => b)
 -}
 
 uncurry :: (A : *) -> (B : A -> *) -> ((a : A) -> (B a) -> Tuple A B) -> (Tuple A B) -> Tuple A B
 uncurry = \A B map tuple => tuple (Tuple A B) map
-
 
 -- Church numerals
 Nat :: *
@@ -43,7 +43,6 @@ plus :: Nat -> Nat -> Nat
 plus = \n m t s z => n t s (m t s z)
 
 -- Constructors for better printing of numerals
-{-
 assume Natural :: *
 assume Z :: Natural
 assume S :: Natural -> Natural
@@ -60,11 +59,26 @@ three = succ two
 
 five :: Nat
 five = plus two three
--}
+
+one' :: Natural
+one' = natToNatural one
 
 -- Equality
 assume Equal :: (a : *) -> (b : *) -> a -> b -> *
 assume Refl :: (a : *) -> (x : a) -> Equal a a x x
+
+{-
+Equal' :: (a : *) -> (b : *) -> a -> b -> *
+Equal' = \A B a b -> (r : *) -> (A -> a -> r) -> r
+
+Refl' :: (A : *) -> (a : A) -> Equal' A A a a
+Refl' = \A a r f -> f A a    
+-}
+
+{-
+replace :: (A : *) -> (x : A) -> (y : A) -> (P : A -> *) -> (Equal A A x y) -> (P x) -> (P y)
+replace = \A x y P pf px => px 
+-}
 
 zeroIsZero :: Equal Nat Nat zero zero
 zeroIsZero = Refl Nat zero
@@ -84,18 +98,20 @@ nPlusZeroIsN = \n => Refl Nat n
 nPlusZeroIsNPlusZero :: (n : Nat) -> Equal Nat Nat (plus n zero) (plus zero n)
 nPlusZeroIsNPlusZero = \n => Refl Nat n
 
-{-
-nit :: *
-nit = Tuple (Nat -> *) Nat
-
 naturalInduction :: 
     (P : Nat -> *) -> -- Propriety we are proving
-    (P zero) -- Base case
-    ((k : Nat) -> P k -> P (succ k)) -- Inductive step
-    (x : Nat) -- Show for all x
-    P x -- Resulting proof
-naturalInduction P base step k = first nit (k (mkTuple (Nat -> *) Nat base zero) (mapTuple (Nat -> *) Nat (\proof prev => step prev proof) (\proof prev => succ prev))
--}
+    (P zero) -> -- Base case
+    ((k : Nat) -> (P k) -> (P (succ k))) -> -- Inductive step
+    (x : Nat) -> -- Show for all x
+    Tuple Nat P -- I have no idea how to extract the proof from here
+naturalInduction = \P base step k => 
+        (k 
+            (Tuple Nat P)
+            (\t => t (Tuple Nat P) 
+               (\prev proof => mkTuple Nat P (succ prev) (step prev proof)))
+            (mkTuple Nat P zero base) 
+        ) 
+        -- (P k) (\num proof => proof)
 
 --plusCommutative :: (a : Nat) -> (b : Nat) -> Equal Nat Nat (plus a b) (plus b a)
 --plusCommutative = \a b => Refl Nat (plus a b)
@@ -103,3 +119,5 @@ naturalInduction P base step k = first nit (k (mkTuple (Nat -> *) Nat base zero)
 -- true :: Equal Nat Nat one (plus zero one)
 -- true = Refl Nat one
 
+tuple :: Tuple Type (\t => t)
+tuple = mkTuple Type (\t => t) Natural one'

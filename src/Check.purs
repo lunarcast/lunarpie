@@ -16,10 +16,10 @@ import Run.Reader (READER, ask, local, runReader, runReaderAt)
 import Run.State (STATE, evalState, get, modify)
 import String (errorText, indent, unlines)
 import Subsitution (substitute)
-import Term (Environment, Name(..), Term(..), Value(..))
+import Term (Environment, Name(..), Term(..), Value(..), Context)
 
 type CheckM r = EvalM 
-  ( reader :: READER Environment
+  ( reader :: READER Context
   -- TODO: better error managment
   , except :: EXCEPT_STACKED Action TypeError
   , state :: STATE Natural 
@@ -37,7 +37,7 @@ data Action
   | Checking Term Value
 
 ---------- Helpers
-runCheckM :: forall a. { types :: Environment, values :: Environment } -> CheckM () a -> Either (ErrorStack Action TypeError) a
+runCheckM :: forall a. { types :: Context, values :: Environment } -> CheckM () a -> Either (ErrorStack Action TypeError) a
 runCheckM { types, values } = evalState zero >>> runReaderAt _values values >>> runReader types >>> runExcept >>> extract
 
 getId :: forall r. CheckM r Natural
@@ -47,7 +47,7 @@ withValue :: forall a r. Name -> Value -> CheckM r a -> CheckM r a
 withValue name value = localValues (over (prop _global) $ Map.insert name value)
 
 withType :: forall a r. Name -> Value -> CheckM r a -> CheckM r a
-withType name value = local (over (prop _global) $ Map.insert name value)
+withType name value = local $ Map.insert name value
 
 ---------- Checking and inference
 check :: forall r. Term -> Value -> CheckM r Unit
@@ -80,7 +80,7 @@ infer' (Annotation term annotation) = do
   expected <- eval annotation
   check term expected
   pure expected
-infer' (Free name) = ask <#> _.global >>= \ctx -> case Map.lookup name ctx of
+infer' (Free name) = ask >>= \ctx -> case Map.lookup name ctx of
   Just ty -> pure ty
   Nothing -> getValues <#> _.global >>= \ctx' -> case Map.lookup name ctx' of
     Just value -> quote' value >>= infer
