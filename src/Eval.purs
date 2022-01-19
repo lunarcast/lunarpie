@@ -75,7 +75,7 @@ eval :: forall r. Term -> EvalM r Value
 eval Star = pure VStar
 eval (Abstraction argName body) = VLambda <$> createFunction argName body
 eval (Annotation term _) = eval term
-eval (Pi from to) = VPi <$> eval from <*> createFunction to
+eval (Pi argName from to) = VPi <$> eval from <*> createFunction argName to
 eval (Free name) = getValues <#> _.global <#> \ctx -> fromMaybe (Neutral $ NFree name) $ Map.lookup name ctx
 eval (Bound i) = getValues <#> _.local <#> \env -> fromMaybe' (notInScope env) $ List.index env (natToInt i)
   where
@@ -110,13 +110,13 @@ quote (VLambda function) = do
     quoted <- quote result
     pure case etaReduce quoted of
       Just t -> t
-      Nothing -> Abstraction quoted
+      Nothing -> Abstraction ("?!?-" <> function.argName) quoted
 quote (VPi from to) = do
   from' <- quote from
   argument <- createQuote
   increaseDepth do
     result <- call to argument
-    Pi from' <$> quote result
+    Pi to.argName from' <$> quote result
 quote (Neutral neutral) = quoteNeutral neutral
 quote VStar = pure Star
 

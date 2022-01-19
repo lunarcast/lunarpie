@@ -62,7 +62,7 @@ check' (Abstraction argName body) (VPi from to) = do
     to' <- call to $ Free unknown 
     let return = substitute zero (Free unknown) body 
     check return to'
-check' expr@(Abstraction _) other = throw $ NotAPi expr other
+check' expr@(Abstraction argName _) other = throw $ NotAPi expr other
 check' term expected = do
   inferred <- infer term
   equivalent <- areEqual inferred expected
@@ -86,10 +86,10 @@ infer' (Free name) = ask >>= \ctx -> case Map.lookup name ctx of
   Nothing -> getValues <#> _.global >>= \ctx' -> case Map.lookup name ctx' of
     Just value -> quote' value >>= infer
     Nothing -> throw $ NameNotInScope name
-infer' (Pi from to) = do
+infer' (Pi argName from to) = do
   check from VStar
   from' <- eval from
-  unknown <- getId <#> Local
+  unknown <- getId <#> Local argName
   withType unknown from' do
     let to' = substitute zero (Free unknown) to
     check to' VStar

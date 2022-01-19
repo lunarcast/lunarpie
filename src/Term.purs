@@ -1,4 +1,22 @@
-module Term where
+module Term
+  ( Context
+  , Environment
+  , LocalEnv
+  , Name(..)
+  , Neutral(..)
+  , Term(..)
+  , VFunction
+  , Value(..)
+  , application
+  , arrow
+  , boundInt
+  , neutralToTerm
+  , parenthesisWhen
+  , star
+  , vArrow
+  , withGraphics
+  )
+  where
 
 import Prelude
 
@@ -31,7 +49,7 @@ type VFunction = { argName :: String, closure :: Environment, term :: Term }
 
 data Value 
   = VLambda VFunction
-  | VPi String Value VFunction
+  | VPi Value VFunction
   | Neutral Neutral
   | VStar 
 
@@ -57,7 +75,7 @@ vArrow argName a b = VPi a { argName, closure: { local: mempty, global: Map.empt
 valueToTerm :: Value -> Term
 valueToTerm (Neutral n) = neutralToTerm n
 valueToTerm (VLambda { term, argName }) = Abstraction argName term
-valueToTerm (VPi from { term }) = Pi (valueToTerm from) term
+valueToTerm (VPi from { argName, term }) = Pi argName (valueToTerm from) term
 valueToTerm VStar = Star
 
 neutralToTerm :: Neutral -> Term
@@ -99,13 +117,15 @@ instance showTerm :: Show Term where
     lhs = case term of
       Abstraction _ _ -> true
       Annotation _ _ -> true
-      Pi _ _ -> true
+      Pi _ _ _ -> true
       _ -> false
   show (Abstraction argName v) = withGraphics (foreground BrightYellow) "λ" <> argName <> "." <> show v
-  show (Pi from to) = parenthesisWhen lhs (show from) <> arrow <> show to
+  show (Pi argName from to) 
+    | argName /= "" = parenthesis (argName <> ": " <> show from) <> arrow <> show to
+    | otherwise = parenthesisWhen lhs (show from) <> arrow <> show to
     where
     lhs = case from of
-      Pi _ _-> true
+      Pi _ _ _-> true
       Abstraction _ _ -> true
       _ -> false
   show (Application f a) = parenthesisWhen lhs (show f) <> " " <> parenthesisWhen rhs (show a)
@@ -114,13 +134,13 @@ instance showTerm :: Show Term where
       Application _ _ -> true
       Abstraction _ _ -> true
       Annotation _ _ -> true
-      Pi _ _ -> true
+      Pi _ _ _ -> true
       _ -> false
 
     lhs = case f of
       Abstraction _ _ -> true
       Annotation _ _ -> true
-      Pi _ _ -> true
+      Pi _ _ _ -> true
       _ -> false
 
 parenthesisWhen :: Boolean -> String -> String

@@ -9,10 +9,10 @@ import Term (Term(..))
 substitute :: Natural -> Term -> Term -> Term
 substitute index with term = case term of
   Annotation e t -> Annotation (self e) (self t)
-  Pi from to -> Pi (self from) (substitute (succ index) with to)
+  Pi argName from to -> Pi argName (self from) (substitute (succ index) with to)
   Bound at | at == index -> with
   Application f a -> Application (self f) (self a)
-  Abstraction body -> Abstraction (substitute (succ index) with body)
+  Abstraction argName body -> Abstraction argName (substitute (succ index) with body)
   v -> v
   where 
   self = substitute index with
@@ -20,10 +20,10 @@ substitute index with term = case term of
 shift :: Int -> Natural -> Term -> Term
 shift index past term = case term of
   Annotation e t -> Annotation (self e) (self t)
-  Pi from to -> Pi (self from) (shift index (succ past) to)
+  Pi argName from to -> Pi argName (self from) (shift index (succ past) to)
   Bound at | at >= past -> Bound (intToNat $ index + natToInt at)
   Application f a -> Application (self f) (self a)
-  Abstraction body -> Abstraction (shift index (succ past) body)
+  Abstraction argName body -> Abstraction argName (shift index (succ past) body)
   v -> v
   where 
   self = shift index past

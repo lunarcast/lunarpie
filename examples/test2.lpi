@@ -13,13 +13,79 @@ the = \_ a => a
 let :: (t: *) -> (r: *) -> (x: t) -> (f: t -> r) -> r
 let = \_ _ x f => f x
 
+-- Pairs
+Tuple :: (a: *) -> (b: *) -> *
+Tuple = \a b => (n: *) -> (a -> b -> n) -> n
+
+Biarrow :: (a: *) -> (b: *) -> *
+Biarrow = \a b => Tuple (a -> b) (b -> a)
+
+tuple :: (a: *) -> (b: *) -> (a': a) -> (b': b) -> Tuple a b
+tuple = \_ _ a b _ g => g a b
+
+duplicate :: (a: *) -> a -> Tuple a a
+duplicate = \t a => tuple t t a a
+
+fst :: (a: *) -> (b: *) -> (Tuple a b) -> a
+fst = \a _ t => t a (\r _ => r) 
+
+snd :: (a: *) -> (b: *) -> (Tuple a b) -> b
+snd = \_ b t => t b (\_ r => r) 
+
+swap :: (a: *) -> (b: *) -> (Tuple a b) -> (Tuple b a)
+swap = \_ _ t r g => t r (\a b => g b a )
+
+-- Dependent pairs
+Pair :: (a: *) -> (b: a -> *) -> *
+Pair = \a b => (n: *) -> ((x: a) -> (b x) -> n) -> n
+
+pair :: (a: *) -> (b: a -> *) -> (x: a) -> (x': b x) -> Pair a b
+pair = \_ _ a b _ g => g a b
+
+pairFst :: (a: *) -> (b: a -> *) -> (Pair a b) -> a
+pairFst = \a _ t => t a (\r _ => r) 
+
+{-
+pairSnd :: (a: *) -> (b: a -> *) -> (p: Pair a b) -> 
+  (b (pairFst a b p))
+pairSnd = \a b p => p (b (pairFst a b p)) (\x r => the (b x) r) 
+-}
+
 -- Equality
 Eq :: (a: *) -> a -> a -> *
-Eq = \t a b => ((P: (t -> *)) -> (P a) -> (P b))
+Eq = \t a b => ((P: (t -> *)) -> Biarrow (P a) (P b))
+
+eqCommutes :: (t: *) -> (a: t) -> (b: t) -> (Eq t a b) -> Eq t b a
+eqCommutes = \t a b e p => 
+  swap ((p a) -> p b) ((p b) -> p a) (e p)
 
 refl :: (t: *) -> (x: t) -> Eq t x x
-refl = \_ _ _ a => a
+refl = \t x p => duplicate ((p x) -> p x) (\x => x) 
 
+fromAtoB :: 
+  (t: *) -> 
+  (a: t) -> 
+  (b: t) -> 
+  (Eq t a b) -> 
+  (P: t -> *) -> 
+  (P a) -> (P b)
+fromAtoB = \_ a b e p => fst 
+  ((p a) -> p b) 
+  ((p b) -> p a) 
+  (e p)
+
+fromBtoA :: 
+  (t: *) -> 
+  (a: t) -> 
+  (b: t) -> 
+  (Eq t a b) -> 
+  (P: t -> *) -> 
+  (P b) -> (P a)
+fromBtoA = \_ a b e p => snd
+  ((p a) -> p b) 
+  ((p b) -> p a) 
+  (e p)
+ 
 -- Church numerals
 Nat :: *
 Nat = (n : *) -> (n -> n) -> n -> n
@@ -34,7 +100,14 @@ succ :: Nat -> Nat
 succ = \n t s z => s (n t s z)
 
 plus :: Nat -> Nat -> Nat
-plus = \n m t s z => n t s (m t s z)
+plus = \n t => n Nat succ t 
+
+-- Proofs
+oneEqualsOne :: Eq Nat one one
+oneEqualsOne = refl Nat one
+
+ZeroPlusNIsN :: (n: Nat) -> Eq Nat n (plus zero n)
+ZeroPlusNIsN = \n => refl Nat n
 
 succCommutesPlus :: (a: Nat) -> (b: Nat) -> Eq Nat (plus (succ a) b) (succ (plus a b))
 succCommutesPlus = \a b => refl Nat (succ (plus a b))
@@ -59,23 +132,19 @@ succI ::
 succI = \a i prop recurse base => 
   recurse a
     (i prop recurse base)
-    
+
+
 plusI :: 
   (a: Nat) -> 
   (b: Nat) -> 
   (natInduction a) -> 
   (natInduction b) -> 
   (natInduction (plus a b))
-plusI = \a b ai bi prop recurse base => let
-  (Nat -> *)
-  (natInduction (plus a b))
-  (\k => prop (plus k b))
-  (\propB =>
+plusI = \a b ai bi prop recurse base =>
     ai 
-      propB
-      (\k prev => the (propB (succ k)) (recurse k prev))
-      (the (propB zero) (bi prop recurse base))
-    )
+      (\k => prop (plus k b))
+      (\k prev => recurse ((plus k b)) prev)
+      (bi prop recurse base)
 
 -- Constructors for better printing of numerals
 assume Natural :: *
@@ -85,17 +154,22 @@ assume S :: Natural -> Natural
 natToNatural :: Nat -> Natural
 natToNatural = \n => n Natural S Z
 
+-- Actual nats?
+ActualNat :: *
+ActualNat = Pair Nat natInduction
 
--- Proofs
-oneEqualsOne :: Eq Nat one one
-oneEqualsOne = refl Nat one
+actualNat :: (x: Nat) -> (natInduction x) -> ActualNat
+actualNat = \a b => pair Nat natInduction a b
 
-nPlusZeroIsN :: (n: Nat) -> Eq Nat n (plus n zero)
-nPlusZeroIsN = \n => refl Nat n
+succAN :: ActualNat -> ActualNat
+succAN = \a => a ActualNat 
+  (\nat induction => actualNat (succ nat) (succI nat induction))
 
-ZeroPlusNIsN :: (n: Nat) -> Eq Nat n (plus zero n)
-ZeroPlusNIsN = \n => refl Nat n
-
+plusAN :: ActualNat -> ActualNat -> ActualNat
+plusAN = \a b => a ActualNat (\natA inductionA => b ActualNat
+    (\natB inductionB =>
+      actualNat (plus natA natB) (plusI natA natB inductionA inductionB)
+    )) 
 
 -- additionCommutative :: (a: Nat) -> (b: Nat) -> Eq Nat (plus a b) (plus b a)
 -- additionCommutative = \a b => refl Nat (plus a b)
