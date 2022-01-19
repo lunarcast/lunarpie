@@ -20,7 +20,7 @@ import Type.Row (type (+))
 
 main :: Effect Unit
 main = do
-  text <- readTextFile UTF8 "examples/test.lpi"
+  text <- readTextFile UTF8 "examples/test2.lpi"
   case extract $ runExcept $ stage text of
     Left err -> errorShow err
     Right Nothing -> pure unit

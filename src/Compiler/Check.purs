@@ -3,6 +3,8 @@ module Lunarpie.Compiler.Check where
 import Prelude
 
 import Check (Action, TypeError, infer)
+import Control.Plus (empty)
+import Data.HashMap as HashMap
 import Data.Lens (over)
 import Data.Lens.Record (prop)
 import Data.Map as Map
@@ -14,23 +16,30 @@ import ErrorStack (ErrorStack)
 import Eval (_global, _values, eval, localValues, quote')
 import Lunarpie.Compiler.Stage (Stage, liftError)
 import Lunarpie.Data.Ast (Module, TopLevelEntry(..), runAstM, toTerm)
-import Run (Run, SProxy(..))
-import Run.Reader (READER, local, runReader, runReaderAt)
+import Run (Run)
+import Run.Reader (READER, Reader(..), local, runReader, runReaderAt)
 import Run.State (STATE, evalState)
 import Term (Context, Environment, Name(..), Term(..))
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
+
+type Values r = ( values :: Reader Environment | r )
 
 type RTypeCheck r 
-  = ( reader :: READER Context
-    , values :: READER Environment
-    , state :: STATE Natural
-    | r )
+  = ( READER Context
+    + Values 
+    + STATE Natural
+    + r )
 
 type TypeCheckingErrors e =
   ( typeError :: ErrorStack Action TypeError
   | e )
 
 runTypeCheck :: forall r. Run (RTypeCheck r) ~> Run r
-runTypeCheck = runReaderAt _values mempty >>> runReader mempty >>> evalState zero
+runTypeCheck = runReaderAt _values emptyValues >>> runReader emptyContext >>> evalState zero
+  where
+  emptyValues = { local: mempty, global: Map.empty }
+  emptyContext = Map.empty
 
 typeCheckingStage :: forall r e. Stage (TypeCheckingErrors e) r Module (Maybe Term)
 typeCheckingStage = typecheckModule >>> runTypeCheck
@@ -56,7 +65,9 @@ typecheckModule' declarations = case ZipperArray.current declarations of
     type' <- eval $ astToTerm ast
     with name type' Nothing $ continue Nothing
   where
-  astToTerm = toTerm >>> runAstM mempty 
+  astToTerm = toTerm >>> runAstM emptyEnv
+    where
+    emptyEnv = HashMap.empty
 
   continue last = case ZipperArray.goNext declarations of
     Nothing -> sequence last
@@ -70,5 +81,5 @@ typecheckModule' declarations = case ZipperArray.current declarations of
     name' = Global name
 
 ---------- Codegen stuff
-_typeError :: SProxy "typeError"
-_typeError = SProxy
+_typeError :: Proxy "typeError"
+_typeError = Proxy

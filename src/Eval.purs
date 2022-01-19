@@ -1,4 +1,26 @@
-module Eval where
+module Eval
+  ( EvalM
+  , _depth
+  , _global
+  , _local
+  , _values
+  , areEqual
+  , call
+  , createFunction
+  , createQuote
+  , etaReduce
+  , eval
+  , getValues
+  , increaseDepth
+  , localValues
+  , quote
+  , quote'
+  , quoteNeutral
+  , references
+  , runEvalM
+  , runQuoteM
+  )
+  where
 
 import Prelude
 
@@ -12,17 +34,18 @@ import Data.Natural (Natural, natToInt, (+-))
 import Effect.Class.Console (logShow)
 import Effect.Unsafe (unsafePerformEffect)
 import Partial.Unsafe (unsafeCrashWith)
-import Run (Run, SProxy(..), extract)
-import Run.Reader (READER, askAt, localAt, runReaderAt)
+import Run (Run, extract)
+import Run.Reader (Reader, askAt, localAt, runReaderAt)
 import Subsitution (shift, substitute, succ)
 import Term (Environment, Name(..), Neutral(..), Term(..), VFunction, Value(..))
+import Type.Proxy (Proxy(..))
 
 type EvalM r = Run 
-  ( values :: READER Environment
+  ( values :: Reader Environment
   | r )
 
 type QuoteM r = EvalM
-  ( depth :: READER Natural
+  ( depth :: Reader Natural
   | r )
 
 ---------- Helpers
@@ -38,8 +61,8 @@ getValues = askAt _values
 localValues :: forall r a. (Environment -> Environment) -> EvalM r a -> EvalM r a
 localValues = localAt _values
 
-createFunction :: forall r. Term -> EvalM r VFunction
-createFunction term = getValues <#> { closure: _, term }
+createFunction :: forall r. String -> Term -> EvalM r VFunction
+createFunction argName term = getValues <#> { argName, closure: _, term }
 
 increaseDepth :: forall r a. QuoteM r a -> QuoteM r a 
 increaseDepth = localAt _depth succ
@@ -50,7 +73,7 @@ createQuote = askAt _depth <#> Quote <#> Free
 ---------- Evaluation
 eval :: forall r. Term -> EvalM r Value
 eval Star = pure VStar
-eval (Abstraction body) = VLambda <$> createFunction body
+eval (Abstraction argName body) = VLambda <$> createFunction argName body
 eval (Annotation term _) = eval term
 eval (Pi from to) = VPi <$> eval from <*> createFunction to
 eval (Free name) = getValues <#> _.global <#> \ctx -> fromMaybe (Neutral $ NFree name) $ Map.lookup name ctx
@@ -117,14 +140,14 @@ etaReduce other =  Nothing
 
 
 -- SProxies
-_local :: SProxy "local"
-_local = SProxy
+_local :: Proxy "local"
+_local = Proxy
 
-_global :: SProxy "global"
-_global = SProxy
+_global :: Proxy "global"
+_global = Proxy
 
-_values :: SProxy "values"
-_values = SProxy
+_values :: Proxy "values"
+_values = Proxy
 
-_depth :: SProxy "depth"
-_depth = SProxy
+_depth :: Proxy "depth"
+_depth = Proxy

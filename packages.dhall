@@ -1,5 +1,6 @@
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201206/packages.dhall sha256:c9ffd7577fb8ee2197309591d7ccc0f506ee37b9078866f0ef159f5abbb1b32b
+      https://github.com/purescript/package-sets/releases/download/psc-0.14.5-20220110/packages.dhall
+        sha256:8dbf71bfc6c7a11043619eebe90ff85f7d884541048aa8cc48eef1ee781cbc0e
 
 let overrides = {=}
 
@@ -17,12 +18,12 @@ let additions =
           , "bifunctors"
           , "record"
           , "effect"
-          , "generics-rep"
           , "datetime"
           , "enums"
+          , "matryoshka"
           ]
-        , repo = "https://github.com/hdgarrood/purescript-debugged"
-        , version = "744498226da3c9b5b37c69771cc0378a65cc8189"
+        , repo = "https://github.com/Mateiadrielrafael/purescript-debugged"
+        , version = "633220f91f87c9acbc4eebbf87628e6cdc658b7b"
         }
       , zipperarray =
         { dependencies =
@@ -37,4 +38,4 @@ let additions =
         }
       }
 
-in  upstream ⫽ overrides ⫽ additions
+in  upstream // overrides // additions

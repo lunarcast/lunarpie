@@ -11,8 +11,9 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
-import Data.Variant (SProxy(..), Variant, inj)
+import Data.Variant (Variant, inj)
 import Data.ZipperArray (ZipperArray, current, goNext)
+import Type.Proxy (Proxy(..))
 import Data.ZipperArray as ZipperArray
 import Lunarpie.Compiler.Stage (Stage)
 import Lunarpie.Data.Ast (Ast(..), TopLevelEntry(..), curriedLambda, manyCalls)
@@ -190,11 +191,11 @@ parsingStage tokens = case ZipperArray.fromArray tokens of
 syntaxError :: forall r a. a -> Variant ( syntaxError :: a | r )
 syntaxError = inj _syntaxError
 
-_syntaxError :: SProxy "syntaxError"
-_syntaxError = SProxy
+_syntaxError :: Proxy "syntaxError"
+_syntaxError = Proxy
 
 emptyFile :: forall r. Variant ( emptyFile :: Unit | r )
 emptyFile = inj _emptyFile unit
 
-_emptyFile :: SProxy "emptyFile"
-_emptyFile = SProxy
+_emptyFile :: Proxy "emptyFile"
+_emptyFile = Proxy

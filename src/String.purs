@@ -3,7 +3,7 @@ module String where
 import Prelude
 
 import Ansi.Codes (Color(..))
-import Ansi.Output (bold, foreground, withGraphics)
+import Ansi.Output (bold, foreground)
 import Data.String (Pattern(..), joinWith, split)
 
 parenthesis :: String -> String
@@ -26,3 +26,6 @@ repeat n s | n <= 0 = s
 
 errorText :: String -> String
 errorText = withGraphics (foreground BrightRed <> bold)
+
+withGraphics :: forall a b. a -> b -> b
+withGraphics _ a = a

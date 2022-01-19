@@ -8,11 +8,13 @@ module Lunarpie.Language.Lexer
 import Prelude
 
 import Data.Either (Either(..))
-import Data.Variant (SProxy(..), Variant, inj)
+import Data.Variant (Variant, inj)
 import Lunarpie.Compiler.Stage (Stage)
 import Lunarpie.Data.Foreign (EitherConfig, eitherConfig)
 import Run.Except (throw)
 import Text.Parsing.Parser.Pos (Position)
+import Type.Proxy (Proxy(..))
+
 
 type Token = 
   { type :: String
@@ -41,5 +43,5 @@ lexerStage text = case lex text of
 tokenizationError :: forall r a. a -> Variant ( tokenizationError :: a | r )
 tokenizationError = inj _tokenizationError
 
-_tokenizationError :: SProxy "tokenizationError"
-_tokenizationError = SProxy
+_tokenizationError :: Proxy "tokenizationError"
+_tokenizationError = Proxy

@@ -17,16 +17,17 @@ import Run.State (STATE, evalState, get, modify)
 import String (errorText, indent, unlines)
 import Subsitution (substitute)
 import Term (Environment, Name(..), Term(..), Value(..), Context)
+import Type.Row (type (+))
 
 type CheckM r = EvalM 
-  ( reader :: READER Context
   -- TODO: better error managment
-  , except :: EXCEPT_STACKED Action TypeError
-  , state :: STATE Natural 
-  | r )
+  ( READER Context
+  + EXCEPT_STACKED Action TypeError
+  + STATE Natural 
+  + r )
 
 data TypeError
-  = TypeMissmatch { inferred :: Value, expected :: Value, term :: Term }
+  = TypeMissmatch { inferred :: Value, expected :: Value, term :: Term, a :: Term, b :: Term }
   | IllegalApplication { function :: Term, argument :: Term, functionType :: Value }
   | NameNotInScope Name
   | CannotInfer Term
@@ -55,8 +56,8 @@ check term value = while (Checking term value) $ check' term value
 
 check' :: forall r. Term -> Value -> CheckM r Unit
 check' Star VStar = pure unit
-check' (Abstraction body) (VPi from to) = do
-  unknown <- getId <#> Local
+check' (Abstraction argName body) (VPi from to) = do
+  unknown <- getId <#> Local (argName <> "#" <> to.argName)
   withType unknown from do 
     to' <- call to $ Free unknown 
     let return = substitute zero (Free unknown) body 
@@ -68,7 +69,7 @@ check' term expected = do
   unless equivalent do
     a <- quote' inferred
     b <- quote' expected
-    throw $ TypeMissmatch { inferred, expected, term } 
+    throw $ TypeMissmatch { inferred, expected, term, a, b } 
 
 infer :: forall r. Term -> CheckM r Value
 infer term = while (Inferring term) $ infer' term
@@ -108,13 +109,18 @@ instance showTypeError :: Show TypeError where
     [ errorText "Cannot infer the type of"
     , indent 2 $ show term
     ]
-  show (TypeMissmatch { inferred, expected, term }) = unlines
+  show (TypeMissmatch { inferred, expected, term, a, b }) = unlines
     [ errorText "Cannot match expected type"
     , indent 2 $ show expected
     , errorText "with type"
     , indent 2 $ show inferred
     , errorText "for term"
-    , indent 2 $ show term ]
+    , indent 2 $ show term
+    , errorText "first quoted term" 
+    , indent 2 $ show a
+    , errorText "second quoted term" 
+    , indent 2 $ show b
+    ]
   show (NameNotInScope name) = errorText $ "Name " <> show name <> " not in scope."
   show (IllegalApplication { function, argument, functionType }) = unlines 
     [ errorText "Cannot apply function" 

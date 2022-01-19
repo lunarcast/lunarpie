@@ -5,10 +5,10 @@ import Prelude
 import Data.Debug (class Debug, genericDebug)
 import Data.Foldable (foldl, foldr)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
 import Data.HashMap as HashMap
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
+import Data.Show.Generic (genericShow)
 import Run (Run, extract)
 import Run.Reader (READER, ask, local, runReader)
 import Subsitution (succ)
@@ -32,7 +32,7 @@ type Module = Array TopLevelEntry
 type AstEnv = HashMap.HashMap String Natural
 
 type AstM = Run 
-  ( reader :: READER AstEnv )
+  ( READER AstEnv ())
 
 -- | Introduce a new variable in scope
 withValue :: forall a. String -> AstM a -> AstM a
@@ -65,15 +65,16 @@ manyCalls :: Ast -> Array Ast -> Ast
 manyCalls = foldl Application
 
 ---------- Typeclass instances
-derive instance genericAst :: Generic Ast _
+derive instance Generic Ast _
 
-instance showAst :: Show Ast where
+instance Show Ast where
   show a = genericShow a
 
-derive instance genericDeclaration :: Generic TopLevelEntry _
+derive instance Generic TopLevelEntry _
 
-instance debugAst :: Debug Ast where
+instance Debug Ast where
   debug a = genericDebug a
 
-instance debugDeclaration :: Debug TopLevelEntry where
+instance Debug TopLevelEntry where
   debug = genericDebug
+

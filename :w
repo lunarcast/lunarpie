@@ -1,0 +1,73 @@
+-- Alias for *
+Type = *
+
+identity :: (a: *) -> a -> a
+identity = \_ a => a 
+
+const :: (a: *) -> (b: *) -> a -> b -> a
+const = \_ _ a _ => a
+
+-- Church numerals
+Nat :: *
+Nat = (n : *) -> (n -> n) -> n -> n
+
+zero :: Nat
+zero = \t s z => z
+
+one :: Nat
+one = \t s z => s z
+
+succ :: Nat -> Nat
+succ = \n t s z => s (n t s z)
+
+plus :: Nat -> Nat -> Nat
+plus = \n m t s z => n t s (m t s z)
+
+-- Natural induction
+natInduction :: Nat -> Type
+natInduction = \t =>
+    (P: (Nat -> *)) -> 
+    ((k: Nat) -> (P k) -> (P (succ k))) -> 
+    (P zero) -> P t
+
+zeroI :: natInduction zero
+zeroI = \prop _ start => start
+
+oneI :: natInduction one
+oneI = \_ n s => n zero s
+
+plusI :: 
+  (a: Nat) -> 
+  (b: Nat) -> 
+  (natInduction a) -> 
+  (natInduction b) -> 
+  (natInduction (plus a b))
+plusI = \a b ai bi p n s => ai (\k => p (plus k b)) n bi
+
+-- Constructors for better printing of numerals
+assume Natural :: *
+assume Z :: Natural
+assume S :: Natural -> Natural
+
+natToNatural :: Nat -> Natural
+natToNatural = \n => n Natural S Z
+
+-- Equality
+Eq :: (a: *) -> a -> a -> *
+Eq = \t a b => ((P: (t -> *)) -> (P a) -> (P b))
+
+refl :: (t: *) -> (x: t) -> Eq t x x
+refl = \_ _ _ a => a
+
+oneEqualsOne :: Eq Nat one one
+oneEqualsOne = refl Nat one
+
+nPlusZeroIsN :: (n: Nat) -> Eq Nat n (plus n zero)
+nPlusZeroIsN = \n => refl Nat n
+
+ZeroPlusNIsN :: (n: Nat) -> Eq Nat n (plus zero n)
+ZeroPlusNIsN = \n => refl Nat n
+
+
+-- additionCommutative :: (a: Nat) -> (b: Nat) -> Eq Nat (plus a b) (plus b a)
+-- additionCommutative = \a b => refl Nat (plus a b)

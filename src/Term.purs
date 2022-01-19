@@ -3,34 +3,35 @@ module Term where
 import Prelude
 
 import Ansi.Codes (Color(..))
-import Ansi.Output (foreground, italic, withGraphics)
+import Ansi.Output (foreground, italic)
 import Data.Foldable (class Foldable, foldl)
 import Data.List (List)
 import Data.Map (Map)
+import Data.Map as Map
 import Data.Natural (Natural, intToNat)
 import String (parenthesis)
 
 data Term
   -- "Value" level stuff
-  = Abstraction Term -- \x -> x
+  = Abstraction String Term -- \x -> x
   | Annotation Term Term -- x :: t
   | Application Term Term -- f a
   | Bound Natural -- x
   | Free Name -- 
   -- "Type" level stuff
-  | Pi Term Term -- (n: Type) -> n
+  | Pi String Term Term -- (n: Type) -> n
   | Star -- Type
 
 data Name
-  = Local Natural
+  = Local String Natural
   | Global String
   | Quote Natural
 
-type VFunction = { closure :: Environment, term :: Term }
+type VFunction = { argName :: String, closure :: Environment, term :: Term }
 
 data Value 
   = VLambda VFunction
-  | VPi Value VFunction
+  | VPi String Value VFunction
   | Neutral Neutral
   | VStar 
 
@@ -50,12 +51,12 @@ boundInt :: Int -> Term
 boundInt = intToNat >>> Bound
 
 -- Non dependent function type
-vArrow :: Value -> Term -> Value
-vArrow a b = VPi a { closure: mempty, term: b }
+vArrow :: String -> Value -> Term -> Value
+vArrow argName a b = VPi a { argName, closure: { local: mempty, global: Map.empty }, term: b }
 
 valueToTerm :: Value -> Term
 valueToTerm (Neutral n) = neutralToTerm n
-valueToTerm (VLambda { term }) = Abstraction term
+valueToTerm (VLambda { term, argName }) = Abstraction argName term
 valueToTerm (VPi from { term }) = Pi (valueToTerm from) term
 valueToTerm VStar = Star
 
@@ -77,10 +78,13 @@ arrow = withGraphics (foreground Yellow) " -> "
 star :: String
 star = withGraphics (foreground BrightGreen) "*"
 
+withGraphics :: forall a b. a -> b -> b
+withGraphics _ a = a
+
 instance showName :: Show Name where
   show = go 
     where 
-    go (Local id) = withGraphics (foreground White) "?" <> style (show id)
+    go (Local name id) = withGraphics (foreground White) "?" <> style (show id) <> "(" <> name <> ")"
     go (Global name) = style name
     go (Quote id) = "~" <> show id
 
@@ -93,28 +97,28 @@ instance showTerm :: Show Term where
   show (Annotation term type') = parenthesisWhen lhs (show term) <> withGraphics (foreground BrightGreen) " :: " <> show type'
     where
     lhs = case term of
-      Abstraction _ -> true
+      Abstraction _ _ -> true
       Annotation _ _ -> true
       Pi _ _ -> true
       _ -> false
-  show (Abstraction v) = withGraphics (foreground BrightYellow) "λ" <> show v
+  show (Abstraction argName v) = withGraphics (foreground BrightYellow) "λ" <> argName <> "." <> show v
   show (Pi from to) = parenthesisWhen lhs (show from) <> arrow <> show to
     where
     lhs = case from of
       Pi _ _-> true
-      Abstraction _ -> true
+      Abstraction _ _ -> true
       _ -> false
   show (Application f a) = parenthesisWhen lhs (show f) <> " " <> parenthesisWhen rhs (show a)
     where
     rhs = case a of
       Application _ _ -> true
-      Abstraction _ -> true
+      Abstraction _ _ -> true
       Annotation _ _ -> true
       Pi _ _ -> true
       _ -> false
 
     lhs = case f of
-      Abstraction _ -> true
+      Abstraction _ _ -> true
       Annotation _ _ -> true
       Pi _ _ -> true
       _ -> false
